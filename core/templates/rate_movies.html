@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block body_content %}
+<div class="min-h-screen py-12 px-4">
+    <div class="max-w-6xl mx-auto bg-white p-8 rounded-xl shadow-md">
+        <div class="flex items-center justify-between mb-6">
+            <h1 class="text-2xl font-bold text-gray-800">Add your ratings!</h1>
+            <form method="post" action="{% url 'logout' %}">
+                {% csrf_token %}
+                <button type="submit"
+                        class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium rounded-lg shadow-sm">
+                    Logout
+                </button>
+            </form>
+        </div>
+        <div class="mb-6">
+            <a href="{% url 'password_change' %}" class="text-blue-600 hover:underline">Change Password</a>
+        </div>
+        <form method="post">
+            {% csrf_token %}
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {% for movie in movies %}
+                <div class="bg-gray-100 rounded-lg shadow-sm p-4 flex flex-col items-center">
+                    <img src="{{ movie.poster_url }}" alt="{{ movie.title }}" class="w-full h-64 object-cover rounded mb-4">
+                    <h2 class="text-lg font-semibold text-gray-800 text-center">{{ movie.title }}</h2>
+                    <p class="text-sm text-gray-500 mb-2">{{ movie.year }}</p>
+                    <label for="rating_{{ movie.id }}" class="text-sm text-gray-700">Your rating:</label>
+                    <select name="rating_{{ movie.id }}" id="rating_{{ movie.id }}"
+                            class="mt-1 w-full border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">--</option>
+                        {% for value in rating_choices %}
+                            <option value="{{ value }}">{{ value }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endfor %}
+            </div>
+            <div class="mt-8 text-center">
+                <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    Submit Ratings
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

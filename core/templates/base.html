@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>{{ title }}</title>
+        <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+        <style>
+            input {
+                border: 1px solid grey;
+            }
+        </style>
+    </head>
+    <body class="w-full bg-gray-50">
+        {% block body_content %}
+        {% endblock %}
+    </body>
+</html>

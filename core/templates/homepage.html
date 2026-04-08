@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block body_content %}
+<div class="min-h-screen py-12 px-4">
+    <div class="max-w-6xl mx-auto bg-white p-8 rounded-xl shadow-md">
+        <div class="flex items-center justify-between mb-6">
+            <h1 class="text-2xl font-bold text-gray-800">Welcome, {{ request.user.first_name }}</h1>
+            <form method="post" action="{% url 'logout' %}">
+                {% csrf_token %}
+                <button type="submit"
+                        class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium rounded-lg shadow-sm">
+                    Logout
+                </button>
+            </form>
+        </div>
+        <div class="mb-6">
+            <a href="{% url 'password_change' %}" class="text-blue-600 hover:underline">Change Password</a>
+        </div>
+        {% if has_rated %}
+            {% for section in recommendation_sections %}
+            <div class="mb-12">
+                <h2 class="text-xl font-semibold text-gray-700 mb-4">{{ section.title }}</h2>
+                <div class="relative">
+                    <div id="carousel-{{ forloop.counter }}" class="flex overflow-x-auto space-x-4 scroll-smooth snap-x snap-mandatory">
+                        {% for movie in section.movies %}
+                        <div class="min-w-[200px] max-w-[200px] bg-gray-100 rounded-lg shadow-sm p-4 snap-start">
+                            <img src="{{ movie.poster_url }}" alt="{{ movie.title }}" class="w-full h-60 object-cover rounded-md mb-2">
+                            <h3 class="text-md font-medium text-gray-800 truncate">{{ movie.title }}</h3>
+                            <p class="text-sm text-gray-600 truncate">{{ movie.tagline }}</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <button onclick="scrollCarousel('carousel-{{ forloop.counter }}', -1)"
+                            class="absolute left-0 top-1/2 -translate-y-1/2 bg-white shadow px-2 py-1 rounded-full z-10 hover:bg-gray-100">
+                        &#8592;
+                    </button>
+                    <button onclick="scrollCarousel('carousel-{{ forloop.counter }}', 1)"
+                            class="absolute right-0 top-1/2 -translate-y-1/2 bg-white shadow px-2 py-1 rounded-full z-10 hover:bg-gray-100">
+                        &#8594;
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+        <div class="max-w-4xl mx-auto mt-12 text-center">
+            <h2 class="text-xl font-semibold text-gray-700 mb-2">No Recommendations Yet</h2>
+            <div class="mt-8">
+                <a href="{% url 'rate_movies' %}"
+                   class="inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg shadow-md">
+                    Rate Movies Now
+                </a>
+            </div>
+        </div>
+        {% endif %}
+
+    </div>
+</div>
+<script>
+    function scrollCarousel(id, direction) {
+        const container = document.getElementById(id);
+        const scrollAmount = 250;
+        container.scrollBy({ left: scrollAmount * direction, behavior: 'smooth' });
+    }
+</script>
+{% endblock %}

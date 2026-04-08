@@ -1,0 +1,8 @@
+debugpy
+Django
+gunicorn
+psycopg2-binary
+pandas
+numpy
+nltk
+scikit-learn
