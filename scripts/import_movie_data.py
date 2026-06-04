@@ -17,21 +17,31 @@ def load_and_clean_movie_data() -> pd.DataFrame:
     links, and poster data
     """
     movies_df = pd.read_csv("data/movies.csv")
-    links_df = pd.read_csv("data/links.csv")
-    posters_df = pd.read_csv("data/poster_cache.csv")
+    posters_df = pd.read_csv("data/tmdb_posters.csv")
 
     # Extract the year of the movie from the title
     movies_df["year"] = movies_df["title"].str.extract(r"\((\d{4})\)", expand=False)
+
     # Extract the title and strip whitespace
-    movies_df["title"] = movies_df["title"].str.replace(r"\(\d{4}\)", "", regex=True).str.strip()
-    # Separate the genres into a list
+    movies_df["title"] = (
+       movies_df["title"]
+       .str.replace(r"\(\d{4}\)", "", regex=True)
+       .str.strip()
+    )
+
+    # Separate genres into a list
     movies_df["genres"] = movies_df["genres"].apply(
         lambda s: s.split("|") if pd.notnull(s) else []
     )
-    # Merge all data into one DataFrame
-    merged_df = movies_df.merge(links_df, on="movieId", how="left").merge(posters_df, on="tmdbId", how="left")
-    return merged_df
 
+    # Merge poster URLs
+    merged_df = movies_df.merge(
+    	posters_df[["movieId", "poster_url"]],
+        on="movieId",
+        how="left"
+    )
+
+    return merged_df
 
 def ensure_genres_exist(all_data_df: pd.DataFrame) -> dict:
     """
