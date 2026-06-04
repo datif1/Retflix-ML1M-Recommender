@@ -3,17 +3,41 @@ import pandas as pd
 from sklearn.metrics.pairwise import cosine_similarity
 from core.models import UserMovieRating
 from django.contrib.auth.models import User
-from data.loader import load_all_data, clean_movie_data, attach_posters, format_recommendations
+from data.loader import load_all_data, clean_movie_data, format_recommendations
+
+
+DJANGO_USER_OFFSET = 1000000
+
+
+def normalize_ratings_columns(ratings_df: pd.DataFrame) -> pd.DataFrame:
+    ratings_df = ratings_df.copy()
+
+    if ratings_df.empty:
+        return ratings_df
+
+    if "userId" in ratings_df.columns:
+        ratings_df = ratings_df.rename(columns={"userId": "user_id"})
+
+    if "movieId" in ratings_df.columns:
+        ratings_df = ratings_df.rename(columns={"movieId": "movie_id"})
+
+    if "movie__movieId" in ratings_df.columns:
+        ratings_df = ratings_df.rename(columns={"movie__movieId": "movie_id"})
+
+    return ratings_df
 
 
 def build_user_item_matrix(ratings_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Builds the user-item matrix where rows are users and columns are movie ids
-    Ratings are filled with 0 for items that don't have any ratings
-    """
+    ratings_df = normalize_ratings_columns(ratings_df)
+
     if ratings_df.empty:
         return pd.DataFrame()
-    return ratings_df.pivot_table(index="user_id", columns="movie__movieId", values="rating").fillna(0)
+
+    return ratings_df.pivot_table(
+        index="user_id",
+        columns="movie_id",
+        values="rating"
+    ).fillna(0)
 
 
 def recommend_from_user_item_matrix(
@@ -22,37 +46,51 @@ def recommend_from_user_item_matrix(
     top_k: int = 10,
     exclude_rated: bool = True
 ) -> List[Dict]:
-    """
-    Generates recommendations based on user similarity using a cosine 
-    similarity weighted averages
-    """
-    # Get all the data from the MovieLens data files
-    movies_df, tags_df, links_df, posters_df = load_all_data()
-    # Process the data and clean to an usable format
+
+    movies_df, _, _ = load_all_data()
     movies_df = clean_movie_data(movies_df)
-    # Add the poster image urls to the movie data as well
-    movies_df = attach_posters(movies_df, links_df, posters_df)
-    # Get the user item matrix
+
+    ratings_df = normalize_ratings_columns(ratings_df)
+
     user_item_matrix = build_user_item_matrix(ratings_df)
-    # Return empty list if user not in the matrix
-    if user_id not in user_item_matrix.index:
+
+    if user_item_matrix.empty or user_id not in user_item_matrix.index:
         return []
-    # Calculate cosine similarity between the target user and all other users
+
     user_vector = user_item_matrix.loc[[user_id]]
+
     similarity_scores = cosine_similarity(user_vector, user_item_matrix)[0]
-    similarity_series = pd.Series(similarity_scores, index=user_item_matrix.index)
-    # Weighted average of ratings by user similarity
-    weighted_ratings = user_item_matrix.T.dot(similarity_series) / similarity_series.sum()
-    # Optionally, exclude the already rated items from suggestions
-    if not exclude_rated:
-        rated_movie_ids = set(ratings_df[ratings_df["user_id"] == user_id]["movie__movieId"])
-        candidates = weighted_ratings.drop(labels=rated_movie_ids, errors="ignore")
-    else:
-        candidates = weighted_ratings
-    # Get the top-k movie recommendations based on most similar values
-    top_movie_ids = candidates.sort_values(ascending=False).head(top_k).index
-    top_movies = movies_df[movies_df["movieId"].isin(top_movie_ids)]
-    # Format the results
+
+    similarity_series = pd.Series(
+        similarity_scores,
+        index=user_item_matrix.index
+    )
+
+    similarity_series = similarity_series.drop(labels=[user_id], errors="ignore")
+
+    if similarity_series.sum() == 0:
+        return []
+
+    weighted_ratings = (
+        user_item_matrix.drop(index=user_id, errors="ignore").T.dot(similarity_series)
+        / similarity_series.sum()
+    )
+
+    if exclude_rated:
+        rated_movie_ids = set(
+            ratings_df[ratings_df["user_id"] == user_id]["movie_id"]
+        )
+        weighted_ratings = weighted_ratings.drop(
+            labels=rated_movie_ids,
+            errors="ignore"
+        )
+
+    top_movie_ids = weighted_ratings.sort_values(ascending=False).head(top_k).index
+
+    top_movies = movies_df[movies_df["movieId"].isin(top_movie_ids)].copy()
+    top_movies["score"] = top_movies["movieId"].map(weighted_ratings)
+    top_movies = top_movies.sort_values(by="score", ascending=False)
+
     return format_recommendations(top_movies, top_k)
 
 
@@ -61,15 +99,43 @@ def recommend_movies(
     top_k: int = 10,
     exclude_rated: bool = True
 ) -> List[Dict]:
-    """
-    Recommends movies for a Django user 
-    """
-    # Get all user-movie ratings
-    ratings_qs = UserMovieRating.objects.all().values("user_id", "movie__movieId", "rating")
-    # Convert to DataFrame
-    ratings_df = pd.DataFrame(list(ratings_qs))
-    # Perform recommendation
-    return recommend_from_user_item_matrix(user.id, ratings_df, top_k, exclude_rated)
+
+    _, ml_ratings_df, _ = load_all_data()
+
+    ml_ratings_df = normalize_ratings_columns(ml_ratings_df)
+
+    django_user_id = DJANGO_USER_OFFSET + user.id
+
+    django_ratings_qs = UserMovieRating.objects.filter(user=user).values(
+        "movie__movieId",
+        "rating"
+    )
+
+    django_ratings_df = pd.DataFrame(list(django_ratings_qs))
+
+    if django_ratings_df.empty:
+        return []
+
+    django_ratings_df = django_ratings_df.rename(
+        columns={"movie__movieId": "movie_id"}
+    )
+
+    django_ratings_df["user_id"] = django_user_id
+
+    combined_ratings_df = pd.concat(
+        [
+            ml_ratings_df[["user_id", "movie_id", "rating"]],
+            django_ratings_df[["user_id", "movie_id", "rating"]]
+        ],
+        ignore_index=True
+    )
+
+    return recommend_from_user_item_matrix(
+        django_user_id,
+        combined_ratings_df,
+        top_k,
+        exclude_rated
+    )
 
 
 def recommend_movies_from_csv(
@@ -78,8 +144,10 @@ def recommend_movies_from_csv(
     top_k: int = 10,
     exclude_rated: bool = True
 ) -> List[Dict]:
-    """
-    Recommends movies for a MovieLens user id using the collaborative model,
-    optionally excluding movies already rated by the user
-    """
-    return recommend_from_user_item_matrix(user_id, ratings_df, top_k, exclude_rated)
+
+    return recommend_from_user_item_matrix(
+        user_id,
+        ratings_df,
+        top_k,
+        exclude_rated
+    )

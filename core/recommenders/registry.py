@@ -1,12 +1,12 @@
-from .clustering import recommend_movies as recommend_movies_clustering
-from .collaborative_based import recommend_movies as recommend_movies_collaborative_based
 from .content_based import recommend_movies as recommend_movies_content_based
-from .sentiment_analysis import recommend_movies as recommend_movies_sentiment_analysis
+from .collaborative_based import recommend_movies as recommend_movies_collaborative_based
+from .clustering import recommend_movies as recommend_movies_clustering
+from .svd_recommender import recommend_movies as recommend_movies_svd
 
-# Holds the mapping to the strategy used for recommendation and its function for generating recommendations
+
 registry = {
+    "content_based": recommend_movies_content_based,
     "collaborative_based": recommend_movies_collaborative_based,
     "clustering": recommend_movies_clustering,
-    "content_based": recommend_movies_content_based,
-    "sentiment_analysis": recommend_movies_sentiment_analysis 
+    "svd": recommend_movies_svd,
 }

@@ -6,3 +6,5 @@ pandas
 numpy
 nltk
 scikit-learn
+requests
+python-dotenv
